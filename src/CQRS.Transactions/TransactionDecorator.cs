@@ -1,41 +1,49 @@
-using System.Data;
-
 namespace CQRS.Transactions
 {
+    using System.Data;
+
     public class TransactionDecorator : IDbTransaction
     {
         private readonly IDbTransaction dbTransaction;
+        private readonly ICompletionBehavior completionBehavior;
         private int transactionCount;
         private int commitCount;
-        public TransactionDecorator(IDbConnection dbConnection, IDbTransaction dbTransaction)
+
+        public TransactionDecorator(IDbConnection dbConnection, IDbTransaction dbTransaction, ICompletionBehavior completionBehavior)
         {
             Connection = dbConnection;
             this.dbTransaction = dbTransaction;
+            this.completionBehavior = completionBehavior;
         }
+
+        public IDbConnection Connection { get; }
+
+        public IsolationLevel IsolationLevel => dbTransaction.IsolationLevel;
 
         public void IncrementTransactionCount() => transactionCount++;
 
-        public void EndTransaction()
+        public void CompleteTransaction()
         {
             if (commitCount == transactionCount)
             {
-                dbTransaction.Commit();
+                completionBehavior.Complete(dbTransaction);
             }
             else
             {
                 dbTransaction.Rollback();
             }
+
             dbTransaction.Dispose();
         }
 
-        public void Dispose() { }
+        public void Dispose()
+        {
+        }
 
         public virtual void Commit() => commitCount++;
 
-        public void Rollback() { }
-
-        public IDbConnection Connection { get; }
-
-        public IsolationLevel IsolationLevel => dbTransaction.IsolationLevel;
+        public void Rollback()
+        {
+        }
     }
 }

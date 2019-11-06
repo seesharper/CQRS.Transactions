@@ -1,0 +1,15 @@
+{
+  "coverage-gutters.lcovname": "../build/Artifacts/TestCoverage/coverage.info",
+  "plsql-language.connections": [
+    {
+      "ID": 3,
+      "active": true,
+      "database": "vt-191-unndb01.testlab.local/HN19101",
+      "hidden": false,
+      "password": "oracle",
+      "username": "system",
+      "name": "system@vt-191-unndb01.testlab.local/HN19101"
+    }
+  ],
+  "plsql-language.connection.activeInfos": "system/oracle@vt-191-unndb01.testlab.local/HN19101"
+}

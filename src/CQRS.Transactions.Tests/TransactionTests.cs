@@ -41,6 +41,37 @@ namespace CQRS.Transactions.Tests
             transactionMock.Verify(m => m.Commit(), Times.Never);
         }
 
+        [Fact]
+        public void ShouldRollbackTransactionWhenCommitIsNotCalled()
+        {
+            Mock<IDbTransaction> transactionMock = new Mock<IDbTransaction>();
+            Mock<IDbConnection> dbConnectionMock = new Mock<IDbConnection>();
+            dbConnectionMock.Setup(m => m.BeginTransaction()).Returns(transactionMock.Object);
 
+            using (ConnectionDecorator connection = new ConnectionDecorator(dbConnectionMock.Object))
+            {
+                var transaction = connection.BeginTransaction();
+            }
+
+            transactionMock.Verify(m => m.Rollback(), Times.Once);
+            transactionMock.Verify(m => m.Commit(), Times.Never);
+        }
+
+        [Fact]
+        public void ShouldRollbackTransactionUsingRollbackCompletionBehavior()
+        {
+            Mock<IDbTransaction> transactionMock = new Mock<IDbTransaction>();
+            Mock<IDbConnection> dbConnectionMock = new Mock<IDbConnection>();
+            dbConnectionMock.Setup(m => m.BeginTransaction()).Returns(transactionMock.Object);
+
+            using (ConnectionDecorator connection = new ConnectionDecorator(dbConnectionMock.Object, new RollbackCompletionBehavior()))
+            {
+                var transaction = connection.BeginTransaction();
+                transaction.Commit();
+            }
+
+            transactionMock.Verify(m => m.Rollback(), Times.Once);
+            transactionMock.Verify(m => m.Commit(), Times.Never);
+        }
     }
 }

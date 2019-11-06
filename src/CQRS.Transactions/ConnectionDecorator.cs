@@ -1,44 +1,23 @@
-using System;
-using System.Data;
-
 namespace CQRS.Transactions
 {
+    using System.Data;
+
     public class ConnectionDecorator : IDbConnection
     {
         private readonly IDbConnection dbConnection;
-        private readonly Lazy<TransactionDecorator> dbTransaction;
+        private readonly ICompletionBehavior completionBehavior;
+        private TransactionDecorator transactionDecorator;
 
         public ConnectionDecorator(IDbConnection dbConnection)
+        : this(dbConnection, new CommitCompletionBehavior())
+        {
+        }
+
+        public ConnectionDecorator(IDbConnection dbConnection, ICompletionBehavior completionBehavior)
         {
             this.dbConnection = dbConnection;
-            dbTransaction =
-                new Lazy<TransactionDecorator>(() => new TransactionDecorator(this, dbConnection.BeginTransaction()));
+            this.completionBehavior = completionBehavior;
         }
-
-        public void Dispose()
-        {
-            if (dbTransaction.IsValueCreated)
-            {
-                dbTransaction.Value.EndTransaction();
-            }
-            dbConnection.Dispose();
-        }
-
-        public IDbTransaction BeginTransaction()
-        {
-            dbTransaction.Value.IncrementTransactionCount();
-            return dbTransaction.Value;
-        }
-
-        public IDbTransaction BeginTransaction(IsolationLevel il) => BeginTransaction();
-
-        public void Close() => dbConnection.Close();
-
-        public void ChangeDatabase(string databaseName) => dbConnection.ChangeDatabase(databaseName);
-
-        public IDbCommand CreateCommand() => dbConnection.CreateCommand();
-
-        public void Open() => dbConnection.Open();
 
         public string ConnectionString
         {
@@ -51,5 +30,33 @@ namespace CQRS.Transactions
         public string Database => dbConnection.Database;
 
         public ConnectionState State => dbConnection.State;
+
+        public void Dispose()
+        {
+            transactionDecorator?.CompleteTransaction();
+            dbConnection.Dispose();
+        }
+
+        public IDbTransaction BeginTransaction()
+        {
+            transactionDecorator ??= new TransactionDecorator(this, dbConnection.BeginTransaction(), completionBehavior);
+            transactionDecorator.IncrementTransactionCount();
+            return transactionDecorator;
+        }
+
+        public IDbTransaction BeginTransaction(IsolationLevel il)
+        {
+            transactionDecorator ??= new TransactionDecorator(this, dbConnection.BeginTransaction(il), completionBehavior);
+            transactionDecorator.IncrementTransactionCount();
+            return transactionDecorator;
+        }
+
+        public void Close() => dbConnection.Close();
+
+        public void ChangeDatabase(string databaseName) => dbConnection.ChangeDatabase(databaseName);
+
+        public IDbCommand CreateCommand() => dbConnection.CreateCommand();
+
+        public void Open() => dbConnection.Open();
     }
 }
