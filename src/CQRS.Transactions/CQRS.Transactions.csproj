@@ -2,6 +2,19 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <Packable>true</Packable>
+    <Authors>Bernhard Richter</Authors>
+    <Description>Enables easy transaction management in CQRS style applications.</Description>
+    <Copyright>Bernhard Richter</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/seesharper/CQRS.LightInject</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/seesharper/CQRS.LightInject</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>CQRS AspNetCore Dotnet Transactions</PackageTags>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>portable</DebugType>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Version>1.0.0</Version>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
