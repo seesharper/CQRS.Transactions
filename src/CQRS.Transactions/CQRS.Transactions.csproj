@@ -7,8 +7,8 @@
     <Description>Enables easy transaction management in CQRS style applications.</Description>
     <Copyright>Bernhard Richter</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/seesharper/CQRS.LightInject</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/seesharper/CQRS.LightInject</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/seesharper/CQRS.Transactions</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/seesharper/CQRS.Transactions</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>CQRS AspNetCore Dotnet Transactions</PackageTags>
     <DebugSymbols>true</DebugSymbols>
