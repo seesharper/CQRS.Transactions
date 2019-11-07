@@ -4,7 +4,8 @@ namespace CQRS.Transactions
 
     /// <summary>
     /// An <see cref="IDbTransaction"/> decorator that completes the transaction
-    /// when the outermost transaction committed or rolled back.
+    /// only when the number of calls to <see cref="IDbTransaction.Commit"/> are equal
+    /// to the number of calls to <see cref="IDbConnection.BeginTransaction()"/>.
     /// </summary>
     public class TransactionDecorator : IDbTransaction
     {
