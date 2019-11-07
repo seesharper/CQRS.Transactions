@@ -39,7 +39,7 @@ namespace CQRS.Transactions
         }
 
         /// <inheritdoc/>
-        public virtual void Commit() => commitCount++;
+        public void Commit() => commitCount++;
 
         /// <inheritdoc/>
         public void Rollback()
