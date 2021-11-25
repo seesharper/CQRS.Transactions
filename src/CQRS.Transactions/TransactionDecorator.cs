@@ -9,7 +9,6 @@ namespace CQRS.Transactions
     /// </summary>
     public class TransactionDecorator : IDbTransaction
     {
-        private readonly IDbTransaction dbTransaction;
         private readonly ICompletionBehavior completionBehavior;
         private int transactionCount;
         private int commitCount;
@@ -23,15 +22,17 @@ namespace CQRS.Transactions
         public TransactionDecorator(IDbConnection dbConnection, IDbTransaction dbTransaction, ICompletionBehavior completionBehavior)
         {
             Connection = dbConnection;
-            this.dbTransaction = dbTransaction;
+            InnerDbTransaction = dbTransaction;
             this.completionBehavior = completionBehavior;
         }
+
+        public IDbTransaction InnerDbTransaction { get; }
 
         /// <inheritdoc/>
         public IDbConnection Connection { get; }
 
         /// <inheritdoc/>
-        public IsolationLevel IsolationLevel => dbTransaction.IsolationLevel;
+        public IsolationLevel IsolationLevel => InnerDbTransaction.IsolationLevel;
 
         /// <inheritdoc/>
         public void Dispose()
@@ -39,7 +40,11 @@ namespace CQRS.Transactions
         }
 
         /// <inheritdoc/>
-        public void Commit() => commitCount++;
+        public void Commit()
+        {
+            commitCount++;
+            TryCompleteTransaction();
+        }
 
         /// <inheritdoc/>
         public void Rollback()
@@ -51,6 +56,14 @@ namespace CQRS.Transactions
         /// </summary>
         internal void IncrementTransactionCount() => transactionCount++;
 
+        internal void TryCompleteTransaction()
+        {
+            if (commitCount == transactionCount && completionBehavior is CommitCompletionBehavior)
+            {
+                completionBehavior.Complete(this);
+            }
+        }
+
         /// <summary>
         /// Completes the transaction by either performing a commit or a rollback.
         /// </summary>
@@ -58,14 +71,14 @@ namespace CQRS.Transactions
         {
             if (commitCount == transactionCount)
             {
-                completionBehavior.Complete(dbTransaction);
+                completionBehavior.Complete(this);
             }
             else
             {
-                dbTransaction.Rollback();
+                InnerDbTransaction.Rollback();
             }
 
-            dbTransaction.Dispose();
+            InnerDbTransaction.Dispose();
         }
     }
 }

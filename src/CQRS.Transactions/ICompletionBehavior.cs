@@ -11,6 +11,6 @@ namespace CQRS.Transactions
         /// Called by the <see cref="TransactionDecorator"/> when a transaction is to be committed.
         /// </summary>
         /// <param name="dbTransaction">The <see cref="IDbTransaction"/> to be committed.</param>
-        void Complete(IDbTransaction dbTransaction);
+        void Complete(TransactionDecorator dbTransaction);
     }
 }

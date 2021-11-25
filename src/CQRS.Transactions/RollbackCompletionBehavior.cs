@@ -9,9 +9,9 @@ namespace CQRS.Transactions
     public class RollbackCompletionBehavior : ICompletionBehavior
     {
         /// <inheritdoc/>
-        public void Complete(IDbTransaction dbTransaction)
+        public void Complete(TransactionDecorator dbTransaction)
         {
-            dbTransaction.Rollback();
+            dbTransaction.InnerDbTransaction.Rollback();
         }
     }
 }
