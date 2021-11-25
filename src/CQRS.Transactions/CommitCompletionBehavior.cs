@@ -9,9 +9,10 @@ namespace CQRS.Transactions
     public class CommitCompletionBehavior : ICompletionBehavior
     {
         /// <inheritdoc/>
-        public void Complete(IDbTransaction dbTransaction)
+        public void Complete(TransactionDecorator dbTransaction)
         {
-            dbTransaction.Commit();
+            dbTransaction.InnerDbTransaction.Commit();
+            ((ConnectionDecorator)dbTransaction.Connection).OnTransactionCompleted(dbTransaction.InnerDbTransaction);
         }
     }
 }

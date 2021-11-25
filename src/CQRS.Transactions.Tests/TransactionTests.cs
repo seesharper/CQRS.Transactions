@@ -73,5 +73,44 @@ namespace CQRS.Transactions.Tests
             transactionMock.Verify(m => m.Rollback(), Times.Once);
             transactionMock.Verify(m => m.Commit(), Times.Never);
         }
+
+
+        [Fact]
+        public void ShouldCommitWhenCommitCountIsEqualToTransactionCount()
+        {
+            Mock<IDbTransaction> transactionMock = new Mock<IDbTransaction>();
+            Mock<IDbConnection> dbConnectionMock = new Mock<IDbConnection>();
+            dbConnectionMock.Setup(m => m.BeginTransaction()).Returns(transactionMock.Object);
+
+            using (ConnectionDecorator connection = new ConnectionDecorator(dbConnectionMock.Object, new CommitCompletionBehavior()))
+            {
+                using (var transaction = connection.BeginTransaction())
+                {
+                    transaction.Commit();
+                }
+                transactionMock.Verify(m => m.Commit(), Times.Once);
+            }
+        }
+
+        [Fact]
+        public void ShouldHandleNestedBeginTransaction()
+        {
+            Mock<IDbTransaction> transactionMock = new Mock<IDbTransaction>();
+            Mock<IDbConnection> dbConnectionMock = new Mock<IDbConnection>();
+            dbConnectionMock.Setup(m => m.BeginTransaction()).Returns(transactionMock.Object);
+
+            using (ConnectionDecorator connection = new ConnectionDecorator(dbConnectionMock.Object, new CommitCompletionBehavior()))
+            {
+                using (var outerTransaction = connection.BeginTransaction())
+                {
+                    using (var innerTransaction = connection.BeginTransaction())
+                    {
+                        innerTransaction.Commit();
+                    }
+                    outerTransaction.Commit();
+                }
+                transactionMock.Verify(m => m.Commit(), Times.Once);
+            }
+        }
     }
 }

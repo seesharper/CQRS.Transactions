@@ -82,5 +82,11 @@ namespace CQRS.Transactions
 
         /// <inheritdoc/>
         public void Open() => dbConnection.Open();
+
+        internal void OnTransactionCompleted(IDbTransaction transaction)
+        {
+            transactionDecorator = null;
+            transaction.Dispose();
+        }
     }
 }
