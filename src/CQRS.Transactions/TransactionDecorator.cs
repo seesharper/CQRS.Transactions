@@ -26,6 +26,9 @@ namespace CQRS.Transactions
             this.completionBehavior = completionBehavior;
         }
 
+        /// <summary>
+        /// Gets the inner <see cref="IDbTransaction"/> being decorated.
+        /// </summary>                        
         public IDbTransaction InnerDbTransaction { get; }
 
         /// <inheritdoc/>
