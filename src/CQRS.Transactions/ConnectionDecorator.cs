@@ -7,7 +7,6 @@ namespace CQRS.Transactions
     /// </summary>
     public class ConnectionDecorator : IDbConnection
     {
-        private readonly IDbConnection dbConnection;
         private readonly ICompletionBehavior completionBehavior;
         private TransactionDecorator transactionDecorator;
 
@@ -28,37 +27,42 @@ namespace CQRS.Transactions
         /// for committing the transaction.</param>
         public ConnectionDecorator(IDbConnection dbConnection, ICompletionBehavior completionBehavior)
         {
-            this.dbConnection = dbConnection;
+            InnerDbConnection = dbConnection;
             this.completionBehavior = completionBehavior;
         }
+
+        /// <summary>
+        /// Gets the inner <see cref="IDbConnection"/> being decorated.
+        /// </summary>                        
+        public IDbConnection InnerDbConnection { get; }
 
         /// <inheritdoc/>
         public string ConnectionString
         {
-            get { return dbConnection.ConnectionString; }
-            set { dbConnection.ConnectionString = value; }
+            get { return InnerDbConnection.ConnectionString; }
+            set { InnerDbConnection.ConnectionString = value; }
         }
 
         /// <inheritdoc/>
-        public int ConnectionTimeout => dbConnection.ConnectionTimeout;
+        public int ConnectionTimeout => InnerDbConnection.ConnectionTimeout;
 
         /// <inheritdoc/>
-        public string Database => dbConnection.Database;
+        public string Database => InnerDbConnection.Database;
 
         /// <inheritdoc/>
-        public ConnectionState State => dbConnection.State;
+        public ConnectionState State => InnerDbConnection.State;
 
         /// <inheritdoc/>
         public void Dispose()
         {
             transactionDecorator?.CompleteTransaction();
-            dbConnection.Dispose();
+            InnerDbConnection.Dispose();
         }
 
         /// <inheritdoc/>
         public IDbTransaction BeginTransaction()
         {
-            transactionDecorator ??= new TransactionDecorator(this, dbConnection.BeginTransaction(), completionBehavior);
+            transactionDecorator ??= new TransactionDecorator(this, InnerDbConnection.BeginTransaction(), completionBehavior);
             transactionDecorator.IncrementTransactionCount();
             return transactionDecorator;
         }
@@ -66,22 +70,22 @@ namespace CQRS.Transactions
         /// <inheritdoc/>
         public IDbTransaction BeginTransaction(IsolationLevel il)
         {
-            transactionDecorator ??= new TransactionDecorator(this, dbConnection.BeginTransaction(il), completionBehavior);
+            transactionDecorator ??= new TransactionDecorator(this, InnerDbConnection.BeginTransaction(il), completionBehavior);
             transactionDecorator.IncrementTransactionCount();
             return transactionDecorator;
         }
 
         /// <inheritdoc/>
-        public void Close() => dbConnection.Close();
+        public void Close() => InnerDbConnection.Close();
 
         /// <inheritdoc/>
-        public void ChangeDatabase(string databaseName) => dbConnection.ChangeDatabase(databaseName);
+        public void ChangeDatabase(string databaseName) => InnerDbConnection.ChangeDatabase(databaseName);
 
         /// <inheritdoc/>
-        public IDbCommand CreateCommand() => dbConnection.CreateCommand();
+        public IDbCommand CreateCommand() => InnerDbConnection.CreateCommand();
 
         /// <inheritdoc/>
-        public void Open() => dbConnection.Open();
+        public void Open() => InnerDbConnection.Open();
 
         internal void OnTransactionCompleted(IDbTransaction transaction)
         {
