@@ -14,7 +14,6 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>portable</DebugType>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Version>1.2.0</Version>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 </Project>
