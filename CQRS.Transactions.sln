@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.26124.0
 MinimumVisualStudioVersion = 15.0.26124.0
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CQRS.Transactions", "CQRS.Transactions\CQRS.Transactions.csproj", "{8604BC4D-A83C-44E3-B82F-3B861DFD4470}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CQRS.Transactions", "src/CQRS.Transactions/CQRS.Transactions.csproj", "{8604BC4D-A83C-44E3-B82F-3B861DFD4470}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CQRS.Transactions.Tests", "CQRS.Transactions.Tests\CQRS.Transactions.Tests.csproj", "{6E1D8CC4-F8C8-43C4-B45D-51AA9C5E57EE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CQRS.Transactions.Tests", "src/CQRS.Transactions.Tests/CQRS.Transactions.Tests.csproj", "{6E1D8CC4-F8C8-43C4-B45D-51AA9C5E57EE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -1,5 +1,9 @@
 {
   "RoslynExtensionsOptions": {
     "enableAnalyzersSupport": true
+  },
+  "script": {
+    "enableScriptNuGetReferences": true,
+    "defaultTargetFramework": "netcoreapp3.0"
   }
 }

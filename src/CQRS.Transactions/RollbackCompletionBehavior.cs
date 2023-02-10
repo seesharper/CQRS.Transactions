@@ -1,17 +1,19 @@
+using System.Threading;
+using System.Threading.Tasks;
 namespace CQRS.Transactions
 {
-    using System.Data;
-
     /// <summary>
-    /// An <see cref="ICompletionBehavior"/> that performs a rollback
-    /// instead of a committ.
+    /// An <see cref="IDbCompletionBehavior"/> that performs a rollback
+    /// when the transaction completes.
     /// </summary>
-    public class RollbackCompletionBehavior : ICompletionBehavior
+    public class DbRollbackCompletionBehavior : IDbCompletionBehavior
     {
+        /// <inheritdoc/>    
+        public void Complete(DbTransactionDecorator dbTransaction)
+            => dbTransaction.InnerDbTransaction.Rollback();
+
         /// <inheritdoc/>
-        public void Complete(TransactionDecorator dbTransaction)
-        {
-            dbTransaction.InnerDbTransaction.Rollback();
-        }
+        public async Task CompleteAsync(DbTransactionDecorator dbTransaction, CancellationToken cancellationToken = default)
+            => await dbTransaction.InnerDbTransaction.RollbackAsync(cancellationToken);
     }
 }
