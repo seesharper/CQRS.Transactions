@@ -14,6 +14,11 @@ public class DbConnectionDecorator : DbConnection
 
     private readonly IDbCompletionBehavior _completionBehavior;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DbConnectionDecorator"/> class.
+    /// </summary>
+    /// <param name="dbConnection">The <see cref="DbConnection"/> being decorated
+    /// for completing the transaction.</param>
     public DbConnectionDecorator(DbConnection dbConnection)
         : this(dbConnection, new DbCommitCompletionBehavior())
     {
@@ -24,7 +29,7 @@ public class DbConnectionDecorator : DbConnection
     /// Initializes a new instance of the <see cref="DbConnectionDecorator"/> class.
     /// </summary>
     /// <param name="dbConnection">The <see cref="DbConnection"/> being decorated.</param>
-    /// <param name="completionBehavior">The <see cref="ICompletionBehavior"/> that is responsible
+    /// <param name="completionBehavior">The <see cref="IDbCompletionBehavior"/> that is responsible
     /// for completing the transaction.</param>
     public DbConnectionDecorator(DbConnection dbConnection, IDbCompletionBehavior completionBehavior)
     {

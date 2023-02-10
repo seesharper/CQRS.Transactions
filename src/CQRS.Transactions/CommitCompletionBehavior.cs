@@ -19,6 +19,7 @@ namespace CQRS.Transactions
             ((DbConnectionDecorator)dbTransaction.Connection).OnTransactionCompleted(dbTransaction.InnerDbTransaction);
         }
 
+        /// <inheritdoc/>
         public async Task CompleteAsync(DbTransactionDecorator dbTransaction, CancellationToken cancellationToken = default)
         {
             await dbTransaction.InnerDbTransaction.CommitAsync(cancellationToken);

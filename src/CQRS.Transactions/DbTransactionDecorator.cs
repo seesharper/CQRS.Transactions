@@ -22,7 +22,7 @@ public class DbTransactionDecorator : DbTransaction
     /// </summary>
     /// <param name="dbConnectionDecorator">The <see cref="DbConnectionDecorator"/> that started the transaction.</param>
     /// <param name="dbTransaction">The decorated <see cref="DbTransaction"/>.</param>
-    /// <param name="completionBehavior">The <see cref="ICompletionBehavior"/> that is responsible for completing the transaction.</param>
+    /// <param name="completionBehavior">The <see cref="IDbCompletionBehavior"/> that is responsible for completing the transaction.</param>
     public DbTransactionDecorator(DbConnection dbConnectionDecorator, DbTransaction dbTransaction, IDbCompletionBehavior completionBehavior)
     {
         _dbConnectionDecorator = dbConnectionDecorator;
@@ -102,7 +102,7 @@ public class DbTransactionDecorator : DbTransaction
         => Task.CompletedTask;
 
     /// <summary>
-    /// Called by the <see cref="ConnectionDecorator.BeginTransaction()"/>.
+    /// Called by the <see cref="DbConnectionDecorator.BeginDbTransaction(IsolationLevel)"/>.
     /// </summary>
     internal void IncrementTransactionCount() => _transactionCount++;
 
