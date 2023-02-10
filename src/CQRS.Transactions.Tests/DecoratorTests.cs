@@ -1,20 +1,25 @@
 using System;
 using System.Data;
+using System.Data.Common;
+using System.Threading.Tasks;
 using FluentAssertions;
 using Moq;
+using Moq.Protected;
 using Xunit;
+using System.Threading;
+
 
 namespace CQRS.Transactions.Tests
 {
     public class DecoratorTests
     {
-        [Fact]
-        public void ShouldForwardOpenToDecoratee()
-        {
-            var transactionMock = new Mock<IDbTransaction>();
-            var dbConnectionMock = new Mock<IDbConnection>();
 
-            using (var connection = new ConnectionDecorator(dbConnectionMock.Object))
+        [Fact]
+        public void ShouldForwardOpenToDecoratedConnection()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
             {
                 connection.Open();
             }
@@ -23,12 +28,23 @@ namespace CQRS.Transactions.Tests
         }
 
         [Fact]
-        public void ShouldForwardChangeDatabaseToDecoratee()
+        public async Task ShouldForwardOpenAsyncToDecoratedConnection()
         {
-            var transactionMock = new Mock<IDbTransaction>();
-            var dbConnectionMock = new Mock<IDbConnection>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                await connection.OpenAsync(CancellationToken.None);
+            }
 
-            using (var connection = new ConnectionDecorator(dbConnectionMock.Object))
+            dbConnectionMock.Verify(m => m.OpenAsync(It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public void ShouldForwardChangeDatabaseToDecoratedConnection()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
             {
                 connection.ChangeDatabase(string.Empty);
             }
@@ -37,12 +53,24 @@ namespace CQRS.Transactions.Tests
         }
 
         [Fact]
-        public void ShouldForwardCloseToDecoratee()
+        public void ShouldForwardChangeDatabaseAsyncToDecoratedConnection()
         {
-            var transactionMock = new Mock<IDbTransaction>();
-            var dbConnectionMock = new Mock<IDbConnection>();
+            var dbConnectionMock = new Mock<DbConnection>();
 
-            using (var connection = new ConnectionDecorator(dbConnectionMock.Object))
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                connection.ChangeDatabaseAsync(string.Empty, CancellationToken.None);
+            }
+
+            dbConnectionMock.Verify(m => m.ChangeDatabaseAsync(string.Empty, It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public void ShouldForwardCloseToDecoratedConnection()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
             {
                 connection.Close();
             }
@@ -51,27 +79,98 @@ namespace CQRS.Transactions.Tests
         }
 
         [Fact]
-        public void ShouldForwardCreateCommandToDecoratee()
+        public async Task ShouldForwardCloseAsyncToDecoratedConnection()
         {
-            var transactionMock = new Mock<IDbTransaction>();
-            var dbConnectionMock = new Mock<IDbConnection>();
+            var dbConnectionMock = new Mock<DbConnection>();
 
-            using (var connection = new ConnectionDecorator(dbConnectionMock.Object))
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                await connection.CloseAsync();
+            }
+
+            dbConnectionMock.Verify(m => m.CloseAsync(), Times.Once);
+        }
+
+        [Fact]
+        public void ShouldForwardCreateCommandToDecoratedConnection()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
             {
                 connection.CreateCommand();
             }
 
-            dbConnectionMock.Verify(m => m.CreateCommand(), Times.Once);
+            dbConnectionMock.Protected().Verify("CreateDbCommand", Times.Once());
         }
 
         [Fact]
-        public void ShouldForwardConnectionStringToDecoratee()
+        public void ShouldForwardEnlistTransactionToDecoratedConnection()
         {
-            var transactionMock = new Mock<IDbTransaction>();
-            var dbConnectionMock = new Mock<IDbConnection>();
+            var dbConnectionMock = new Mock<DbConnection>();
+
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                connection.EnlistTransaction(System.Transactions.Transaction.Current);
+            }
+
+            dbConnectionMock.Verify(m => m.EnlistTransaction(null), Times.Once);
+        }
+
+        [Fact]
+        public void ShouldForwardGetSchemaToDecoratedConnection()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+
+            dbConnectionMock.Setup(m => m.GetSchema()).Returns(new DataTable());
+
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                connection.GetSchema();
+            }
+
+            dbConnectionMock.Verify(m => m.GetSchema(), Times.Once);
+        }
+
+        [Fact]
+        public void ShouldForwardGetSchemaWithCollectionNameToDecoratedConnection()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+
+            dbConnectionMock.Setup(m => m.GetSchema(It.IsAny<string>())).Returns(new DataTable());
+
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                connection.GetSchema(It.IsAny<string>());
+            }
+
+            dbConnectionMock.Verify(m => m.GetSchema(It.IsAny<string>()), Times.Once);
+        }
+
+        [Fact]
+        public void ShouldForwardGetSchemaWithCollectionNameAndRestrictValuesToDecoratedConnection()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+
+            dbConnectionMock.Setup(m => m.GetSchema(It.IsAny<string>(), It.IsAny<string[]>())).Returns(new DataTable());
+
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                connection.GetSchema(It.IsAny<string>(), It.IsAny<string[]>());
+            }
+
+            dbConnectionMock.Verify(m => m.GetSchema(It.IsAny<string>(), It.IsAny<string[]>()), Times.Once);
+        }
+
+
+
+        [Fact]
+        public void ShouldForwardConnectionStringToDecoratedConnection()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
             dbConnectionMock.SetupAllProperties();
 
-            using (var connection = new ConnectionDecorator(dbConnectionMock.Object))
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
             {
                 connection.ConnectionString = TestData.ConnectionString;
                 connection.ConnectionString.Should().Be(TestData.ConnectionString);
@@ -82,13 +181,58 @@ namespace CQRS.Transactions.Tests
         }
 
         [Fact]
-        public void ShouldForwardStateToDecoratee()
+        public void ShouldGetDataSourceFromDecoratedConnection()
         {
-            var transactionMock = new Mock<IDbTransaction>();
-            var dbConnectionMock = new Mock<IDbConnection>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.SetupGet(m => m.DataSource).Returns(TestData.DataSource);
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                connection.DataSource.Should().Be(TestData.DataSource);
+            }
+
+            dbConnectionMock.VerifyGet(m => m.DataSource, Times.Once);
+
+        }
+
+        [Fact]
+        public void ShouldGetServerVersionFromDecoratedConnection()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.SetupGet(m => m.ServerVersion).Returns(TestData.ServerVersion);
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                connection.ServerVersion.Should().Be(TestData.ServerVersion);
+            }
+
+            dbConnectionMock.VerifyGet(m => m.ServerVersion, Times.Once);
+
+        }
+
+        [Fact]
+        public void ShouldBeAbleToRaiseEvents()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.SetupGet(m => m.ServerVersion).Returns(TestData.ServerVersion);
+            dbConnectionMock.Setup(m => m.Open()).Raises(m => m.StateChange += null, new StateChangeEventArgs(ConnectionState.Closed, ConnectionState.Open));
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                ((bool)typeof(DbConnectionDecorator).GetProperty("CanRaiseEvents", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(connection)).Should().BeTrue();
+                connection.StateChange += (s, a) =>
+                {
+                    a.CurrentState.Should().Be(ConnectionState.Open);
+                };
+                connection.Open();
+            }
+        }
+
+
+        [Fact]
+        public void ShouldForwardStateToDecoratedConnection()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
             dbConnectionMock.SetupGet(m => m.State).Returns(ConnectionState.Open);
 
-            using (var connection = new ConnectionDecorator(dbConnectionMock.Object))
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
             {
                 connection.State.Should().Be(ConnectionState.Open);
 
@@ -98,13 +242,12 @@ namespace CQRS.Transactions.Tests
         }
 
         [Fact]
-        public void ShouldForwardDatabaseToDecoratee()
+        public void ShouldForwardDatabaseToDecoratedConnection()
         {
-            var transactionMock = new Mock<IDbTransaction>();
-            var dbConnectionMock = new Mock<IDbConnection>();
+            var dbConnectionMock = new Mock<DbConnection>();
             dbConnectionMock.SetupGet(m => m.Database).Returns(TestData.Database);
 
-            using (var connection = new ConnectionDecorator(dbConnectionMock.Object))
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
             {
                 connection.Database.Should().Be(TestData.Database);
             }
@@ -113,13 +256,12 @@ namespace CQRS.Transactions.Tests
         }
 
         [Fact]
-        public void ShouldForwardConnectionTimeoutToDecoratee()
+        public void ShouldForwardConnectionTimeoutToDecoratedConnection()
         {
-            var transactionMock = new Mock<IDbTransaction>();
-            var dbConnectionMock = new Mock<IDbConnection>();
+            var dbConnectionMock = new Mock<DbConnection>();
             dbConnectionMock.SetupGet(m => m.ConnectionTimeout).Returns(TestData.ConnectionTimeout);
 
-            using (var connection = new ConnectionDecorator(dbConnectionMock.Object))
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
             {
                 connection.ConnectionTimeout.Should().Be(TestData.ConnectionTimeout);
             }
@@ -128,55 +270,86 @@ namespace CQRS.Transactions.Tests
         }
 
         [Fact]
-        public void ShouldForwardBeginTransactionToDecoratee()
+        public void ShouldForwardBeginTransactionToDecoratedConnection()
         {
-            var transactionMock = new Mock<IDbTransaction>();
-            var dbConnectionMock = new Mock<IDbConnection>();
-            dbConnectionMock.Setup(m => m.BeginTransaction()).Returns(transactionMock.Object);
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified).Returns(transactionMock.Object);
 
-            using (var connection = new ConnectionDecorator(dbConnectionMock.Object))
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
             {
                 connection.BeginTransaction();
             }
 
-            dbConnectionMock.Verify(m => m.BeginTransaction(), Times.Once);
+            dbConnectionMock.Protected().Verify("BeginDbTransaction", Times.Once(), IsolationLevel.Unspecified);
         }
 
         [Fact]
-        public void ShouldForwardBeginTransactionWithIsolationLevelToDecoratee()
+        public void ShouldForwardBeginTransactionWithIsolationLevelToDecoratedConnection()
         {
-            var transactionMock = new Mock<IDbTransaction>();
-            var dbConnectionMock = new Mock<IDbConnection>();
-            dbConnectionMock.Setup(m => m.BeginTransaction(IsolationLevel.ReadCommitted)).Returns(transactionMock.Object);
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.ReadCommitted).Returns(transactionMock.Object);
 
-            using (var connection = new ConnectionDecorator(dbConnectionMock.Object))
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
             {
                 connection.BeginTransaction(IsolationLevel.ReadCommitted);
             }
 
-            dbConnectionMock.Verify(m => m.BeginTransaction(IsolationLevel.ReadCommitted), Times.Once);
+            dbConnectionMock.Protected().Verify("BeginDbTransaction", Times.Once(), IsolationLevel.ReadCommitted);
+        }
+
+
+        [Fact]
+        public async Task ShouldForwardBeginTransactionAsyncToDecoratedConnection()
+        {
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.Protected().Setup<ValueTask<DbTransaction>>("BeginDbTransactionAsync", IsolationLevel.Unspecified, CancellationToken.None).Returns(ValueTask.FromResult(transactionMock.Object));
+
+            await using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                await connection.BeginTransactionAsync();
+            }
+
+            dbConnectionMock.Protected().Verify("BeginDbTransactionAsync", Times.Once(), IsolationLevel.Unspecified, CancellationToken.None);
         }
 
         [Fact]
-        public void ShouldNotForwardDisposeToDecoratee()
+        public async Task ShouldForwardBeginTransactionAsyncWithIsolationLevelToDecoratedConnection()
         {
-            var transactionMock = new Mock<IDbTransaction>();
-            var dbConnectionMock = new Mock<IDbConnection>();
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.Protected().Setup<ValueTask<DbTransaction>>("BeginDbTransactionAsync", IsolationLevel.ReadCommitted, CancellationToken.None).Returns(ValueTask.FromResult(transactionMock.Object));
 
-            using (var transaction = new TransactionDecorator(dbConnectionMock.Object, transactionMock.Object, new CommitCompletionBehavior()))
+            await using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+            }
+
+            dbConnectionMock.Protected().Verify("BeginDbTransactionAsync", Times.Once(), IsolationLevel.ReadCommitted, CancellationToken.None);
+        }
+
+
+        [Fact]
+        public void ShouldNotForwardDisposeToDecoratedTransaction()
+        {
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            using (var transaction = new DbTransactionDecorator(dbConnectionMock.Object, transactionMock.Object, new DbCommitCompletionBehavior()))
             {
             }
 
-            transactionMock.Verify(m => m.Dispose(), Times.Never);
+            transactionMock.Protected().Verify("Dispose", Times.Never(), args: true);
         }
 
         [Fact]
         public void ShouldGetConnectionFromTransaction()
         {
-            var transactionMock = new Mock<IDbTransaction>();
-            var dbConnectionMock = new Mock<IDbConnection>();
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
 
-            using (var transaction = new TransactionDecorator(dbConnectionMock.Object, transactionMock.Object, new CommitCompletionBehavior()))
+            using (var transaction = new DbTransactionDecorator(dbConnectionMock.Object, transactionMock.Object, new DbCommitCompletionBehavior()))
             {
                 transaction.Connection.Should().BeAssignableTo<IDbConnection>();
             }
@@ -185,50 +358,75 @@ namespace CQRS.Transactions.Tests
         [Fact]
         public void ShouldGetIsolationLevel()
         {
-            var transactionMock = new Mock<IDbTransaction>();
-            var dbConnectionMock = new Mock<IDbConnection>();
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
             transactionMock.SetupGet(m => m.IsolationLevel).Returns(IsolationLevel.ReadCommitted);
-            using (var transaction = new TransactionDecorator(dbConnectionMock.Object, transactionMock.Object, new CommitCompletionBehavior()))
+            using (var transaction = new DbTransactionDecorator(dbConnectionMock.Object, transactionMock.Object, new DbCommitCompletionBehavior()))
             {
                 transaction.IsolationLevel.Should().Be(IsolationLevel.ReadCommitted);
             }
         }
 
 
-        // [Fact]
-        // public void ShouldForwardToDecoratee()
-        // {
-        //     var transactionMock = new Mock<IDbTransaction>();
-        //     var dbConnectionMock = new Mock<IDbConnection>();
-        //     dbConnectionMock.Setup(m => m.BeginTransaction()).Returns(transactionMock.Object);
+        [Fact]
+        public void ShouldCommitTransactionWhenConnectionIsDisposed()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            var transactionMock = new Mock<DbTransaction>();
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified).Returns(transactionMock.Object);
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                var transaction = connection.BeginTransaction();
+                transaction.Commit();
+            }
 
-        //     using (var connection = new ConnectionDecorator(dbConnectionMock.Object))
-        //     {
-        //         connection.Open();
-        //         connection.ChangeDatabase(string.Empty);
-        //         connection.Close();
-        //         connection.CreateCommand();
-        //         var transaction = connection.BeginTransaction(IsolationLevel.Unspecified);
-        //         transaction.Connection.Should().BeOfType<ConnectionDecorator>();
-        //         transaction.Dispose();
+            transactionMock.Verify(m => m.Commit(), Times.Once);
+        }
 
-        //         connection.ConnectionString = "SomeConnectionString";
-        //         var connectionString = connection.ConnectionString;
-        //         var connectionTimeout = connection.ConnectionTimeout;
-        //         var connectionState = connection.State;
-        //         var database = connection.Database;
-        //     }
+        [Fact]
+        public async Task ShouldCommitAsyncTransactionWhenConnectionIsDisposedAsync()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            var transactionMock = new Mock<DbTransaction>();
+            dbConnectionMock.Protected().Setup<ValueTask<DbTransaction>>("BeginDbTransactionAsync", IsolationLevel.Unspecified, CancellationToken.None).Returns(ValueTask.FromResult(transactionMock.Object));
+            await using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                var transaction = await connection.BeginTransactionAsync();
+                await transaction.CommitAsync();
+            }
 
-        //     dbConnectionMock.Verify(m => m.Open(), Times.Once);
-        //     dbConnectionMock.Verify(m => m.ChangeDatabase(string.Empty), Times.Once);
-        //     dbConnectionMock.Verify(m => m.Close(), Times.Once);
-        //     dbConnectionMock.Verify(m => m.CreateCommand(), Times.Once);
-        //     dbConnectionMock.Verify(m => m.BeginTransaction(), Times.Once);
-        //     dbConnectionMock.VerifyGet(m => m.ConnectionString, Times.Once);
-        //     dbConnectionMock.VerifyGet(m => m.ConnectionTimeout, Times.Once);
-        //     dbConnectionMock.VerifyGet(m => m.State, Times.Once);
-        //     dbConnectionMock.VerifyGet(m => m.Database, Times.Once);
-        //     dbConnectionMock.VerifySet(m => m.ConnectionString = "SomeConnectionString", Times.Once);
-        // }
+            transactionMock.Verify(m => m.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+
+        [Fact]
+        public void ShouldRollbackTransactionIfNotCommittedWhenConnectionIsDisposed()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            var transactionMock = new Mock<DbTransaction>();
+            var completionBehaviorMock = new Mock<IDbCompletionBehavior>();
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified).Returns(transactionMock.Object);
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object, completionBehaviorMock.Object))
+            {
+                var transaction = connection.BeginTransaction();
+            }
+
+            transactionMock.Verify(m => m.Rollback(), Times.Once);
+        }
+
+        [Fact]
+        public async Task ShouldRollbackTransactionAsyncIfNotCommittedWhenConnectionIsDisposed()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            var transactionMock = new Mock<DbTransaction>();
+            var completionBehaviorMock = new Mock<IDbCompletionBehavior>();
+            dbConnectionMock.Protected().Setup<ValueTask<DbTransaction>>("BeginDbTransactionAsync", IsolationLevel.Unspecified, CancellationToken.None).Returns(ValueTask.FromResult(transactionMock.Object));
+            await using (var connection = new DbConnectionDecorator(dbConnectionMock.Object, completionBehaviorMock.Object))
+            {
+                var transaction = connection.BeginTransactionAsync();
+            }
+
+            transactionMock.Verify(m => m.RollbackAsync(CancellationToken.None), Times.Once);
+        }
     }
 }

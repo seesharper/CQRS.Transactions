@@ -1,6 +1,9 @@
-using System;
 using System.Data;
+using System.Data.Common;
+using System.Threading;
+using System.Threading.Tasks;
 using Moq;
+using Moq.Protected;
 using Xunit;
 
 namespace CQRS.Transactions.Tests
@@ -10,11 +13,10 @@ namespace CQRS.Transactions.Tests
         [Fact]
         public void ShouldCommitTransaction()
         {
-            Mock<IDbTransaction> transactionMock = new Mock<IDbTransaction>();
-            Mock<IDbConnection> dbConnectionMock = new Mock<IDbConnection>();
-            dbConnectionMock.Setup(m => m.BeginTransaction()).Returns(transactionMock.Object);
-
-            using (ConnectionDecorator connection = new ConnectionDecorator(dbConnectionMock.Object))
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified).Returns(transactionMock.Object);
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
             {
                 var transaction = connection.BeginTransaction();
                 transaction.Commit();
@@ -25,13 +27,30 @@ namespace CQRS.Transactions.Tests
         }
 
         [Fact]
+        public async Task ShouldCommitTransactionAsync()
+        {
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.Protected().Setup<ValueTask<DbTransaction>>("BeginDbTransactionAsync", IsolationLevel.Unspecified, CancellationToken.None).Returns(ValueTask.FromResult(transactionMock.Object));
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                var transaction = await connection.BeginTransactionAsync();
+                await transaction.CommitAsync();
+            }
+
+            transactionMock.Verify(m => m.CommitAsync(CancellationToken.None), Times.Once);
+            transactionMock.Verify(m => m.RollbackAsync(CancellationToken.None), Times.Never);
+        }
+
+
+        [Fact]
         public void ShouldRollbackTransaction()
         {
-            Mock<IDbTransaction> transactionMock = new Mock<IDbTransaction>();
-            Mock<IDbConnection> dbConnectionMock = new Mock<IDbConnection>();
-            dbConnectionMock.Setup(m => m.BeginTransaction()).Returns(transactionMock.Object);
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified).Returns(transactionMock.Object);
 
-            using (ConnectionDecorator connection = new ConnectionDecorator(dbConnectionMock.Object))
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
             {
                 var transaction = connection.BeginTransaction();
                 transaction.Rollback();
@@ -42,13 +61,30 @@ namespace CQRS.Transactions.Tests
         }
 
         [Fact]
+        public async Task ShouldRollbackTransactionAsync()
+        {
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.Protected().Setup<ValueTask<DbTransaction>>("BeginDbTransactionAsync", IsolationLevel.Unspecified, CancellationToken.None).Returns(ValueTask.FromResult(transactionMock.Object));
+
+            await using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                var transaction = await connection.BeginTransactionAsync();
+                await transaction.RollbackAsync();
+            }
+
+            transactionMock.Verify(m => m.RollbackAsync(CancellationToken.None), Times.Once);
+            transactionMock.Verify(m => m.CommitAsync(CancellationToken.None), Times.Never);
+        }
+
+        [Fact]
         public void ShouldRollbackTransactionWhenCommitIsNotCalled()
         {
-            Mock<IDbTransaction> transactionMock = new Mock<IDbTransaction>();
-            Mock<IDbConnection> dbConnectionMock = new Mock<IDbConnection>();
-            dbConnectionMock.Setup(m => m.BeginTransaction()).Returns(transactionMock.Object);
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified).Returns(transactionMock.Object);
 
-            using (ConnectionDecorator connection = new ConnectionDecorator(dbConnectionMock.Object))
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
             {
                 var transaction = connection.BeginTransaction();
             }
@@ -60,11 +96,11 @@ namespace CQRS.Transactions.Tests
         [Fact]
         public void ShouldRollbackTransactionUsingRollbackCompletionBehavior()
         {
-            Mock<IDbTransaction> transactionMock = new Mock<IDbTransaction>();
-            Mock<IDbConnection> dbConnectionMock = new Mock<IDbConnection>();
-            dbConnectionMock.Setup(m => m.BeginTransaction()).Returns(transactionMock.Object);
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified).Returns(transactionMock.Object);
 
-            using (ConnectionDecorator connection = new ConnectionDecorator(dbConnectionMock.Object, new RollbackCompletionBehavior()))
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object, new DbRollbackCompletionBehavior()))
             {
                 var transaction = connection.BeginTransaction();
                 transaction.Commit();
@@ -74,15 +110,33 @@ namespace CQRS.Transactions.Tests
             transactionMock.Verify(m => m.Commit(), Times.Never);
         }
 
+        [Fact]
+        public async Task ShouldRollbackTransactionAsyncUsingRollbackCompletionBehavior()
+        {
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.Protected().Setup<ValueTask<DbTransaction>>("BeginDbTransactionAsync", IsolationLevel.Unspecified, CancellationToken.None).Returns(ValueTask.FromResult(transactionMock.Object));
+
+            await using (var connection = new DbConnectionDecorator(dbConnectionMock.Object, new DbRollbackCompletionBehavior()))
+            {
+                var transaction = await connection.BeginTransactionAsync();
+                await transaction.CommitAsync();
+            }
+
+            transactionMock.Verify(m => m.RollbackAsync(CancellationToken.None), Times.Once);
+            transactionMock.Verify(m => m.CommitAsync(CancellationToken.None), Times.Never);
+        }
+
 
         [Fact]
         public void ShouldCommitWhenCommitCountIsEqualToTransactionCount()
         {
-            Mock<IDbTransaction> transactionMock = new Mock<IDbTransaction>();
-            Mock<IDbConnection> dbConnectionMock = new Mock<IDbConnection>();
-            dbConnectionMock.Setup(m => m.BeginTransaction()).Returns(transactionMock.Object);
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified).Returns(transactionMock.Object);
 
-            using (ConnectionDecorator connection = new ConnectionDecorator(dbConnectionMock.Object, new CommitCompletionBehavior()))
+
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object, new DbCommitCompletionBehavior()))
             {
                 using (var transaction = connection.BeginTransaction())
                 {
@@ -93,13 +147,32 @@ namespace CQRS.Transactions.Tests
         }
 
         [Fact]
+        public async Task ShouldCommitAsyncWhenCommitCountIsEqualToTransactionCount()
+        {
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.Protected().Setup<ValueTask<DbTransaction>>("BeginDbTransactionAsync", IsolationLevel.Unspecified, CancellationToken.None).Returns(ValueTask.FromResult(transactionMock.Object));
+
+
+            await using (var connection = new DbConnectionDecorator(dbConnectionMock.Object, new DbCommitCompletionBehavior()))
+            {
+                await using (var transaction = await connection.BeginTransactionAsync())
+                {
+                    await transaction.CommitAsync();
+                }
+                transactionMock.Verify(m => m.CommitAsync(CancellationToken.None), Times.Once);
+            }
+        }
+
+
+        [Fact]
         public void ShouldHandleNestedBeginTransaction()
         {
-            Mock<IDbTransaction> transactionMock = new Mock<IDbTransaction>();
-            Mock<IDbConnection> dbConnectionMock = new Mock<IDbConnection>();
-            dbConnectionMock.Setup(m => m.BeginTransaction()).Returns(transactionMock.Object);
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified).Returns(transactionMock.Object);
 
-            using (ConnectionDecorator connection = new ConnectionDecorator(dbConnectionMock.Object, new CommitCompletionBehavior()))
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object, new DbCommitCompletionBehavior()))
             {
                 using (var outerTransaction = connection.BeginTransaction())
                 {
