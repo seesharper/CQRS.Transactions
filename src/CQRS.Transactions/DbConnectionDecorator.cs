@@ -14,6 +14,8 @@ public class DbConnectionDecorator : DbConnection
 
     private readonly IDbCompletionBehavior _completionBehavior;
 
+    private bool _isDisposed = false;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="DbConnectionDecorator"/> class.
     /// </summary>
@@ -137,6 +139,13 @@ public class DbConnectionDecorator : DbConnection
     /// <inheritdoc />
     protected override void Dispose(bool disposing)
     {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        _isDisposed = true;
+
         if (disposing)
         {
             if (_transactionDecorator != null)
@@ -144,17 +153,21 @@ public class DbConnectionDecorator : DbConnection
                 _transactionDecorator.CompleteTransaction();
             }
 
-            //_transactionDecorator?.CompleteTransaction();
             InnerDbConnection.StateChange -= StateChangeHandler;
             InnerDbConnection.Dispose();
         }
-
-        //base.Dispose(disposing);
     }
 
     /// <inheritdoc />
     public override async ValueTask DisposeAsync()
     {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        _isDisposed = true;
+
         if (_transactionDecorator != null)
         {
             await _transactionDecorator.CompleteTransactionAsync();
@@ -162,7 +175,6 @@ public class DbConnectionDecorator : DbConnection
 
         InnerDbConnection.StateChange -= StateChangeHandler;
         await InnerDbConnection.DisposeAsync();
-        //await base.DisposeAsync();
     }
 
     internal void OnTransactionCompleted(DbTransaction dbTransaction)

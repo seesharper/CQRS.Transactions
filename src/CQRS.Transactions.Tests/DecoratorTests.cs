@@ -384,6 +384,23 @@ namespace CQRS.Transactions.Tests
         }
 
         [Fact]
+        public void ShouldOnlyCommitTransactionOnceWhenConnectionIsDisposedTwice()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            var transactionMock = new Mock<DbTransaction>();
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified).Returns(transactionMock.Object);
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                var transaction = connection.BeginTransaction();
+                transaction.Commit();
+                connection.Dispose();
+            }
+
+            transactionMock.Verify(m => m.Commit(), Times.Once);
+        }
+
+
+        [Fact]
         public async Task ShouldCommitAsyncTransactionWhenConnectionIsDisposedAsync()
         {
             var dbConnectionMock = new Mock<DbConnection>();
@@ -393,6 +410,22 @@ namespace CQRS.Transactions.Tests
             {
                 var transaction = await connection.BeginTransactionAsync();
                 await transaction.CommitAsync();
+            }
+
+            transactionMock.Verify(m => m.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task ShouldCommitAsyncTransactionOnceWhenConnectionIsDisposedAsyncTwice()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            var transactionMock = new Mock<DbTransaction>();
+            dbConnectionMock.Protected().Setup<ValueTask<DbTransaction>>("BeginDbTransactionAsync", IsolationLevel.Unspecified, CancellationToken.None).Returns(ValueTask.FromResult(transactionMock.Object));
+            await using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                var transaction = await connection.BeginTransactionAsync();
+                await transaction.CommitAsync();
+                await connection.DisposeAsync();
             }
 
             transactionMock.Verify(m => m.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
