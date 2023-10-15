@@ -121,5 +121,4 @@ public class DbTransactionDecorator : DbTransaction
             await _completionBehavior.CompleteAsync(this, cancellationToken);
         }
     }
-
 }

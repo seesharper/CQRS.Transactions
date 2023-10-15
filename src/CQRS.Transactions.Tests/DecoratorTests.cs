@@ -285,6 +285,21 @@ namespace CQRS.Transactions.Tests
         }
 
         [Fact]
+        public void ShouldForwardCreateDbParameterToDecoratedConnection()
+        {
+            var transactionMock = new Mock<DbTransaction>();
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified).Returns(transactionMock.Object);
+
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                connection.BeginTransaction();
+            }
+
+            dbConnectionMock.Protected().Verify("BeginDbTransaction", Times.Once(), IsolationLevel.Unspecified);
+        }
+
+        [Fact]
         public void ShouldForwardBeginTransactionWithIsolationLevelToDecoratedConnection()
         {
             var transactionMock = new Mock<DbTransaction>();
@@ -460,6 +475,43 @@ namespace CQRS.Transactions.Tests
             }
 
             transactionMock.Verify(m => m.RollbackAsync(CancellationToken.None), Times.Once);
+        }
+
+        [Fact]
+        public void ShouldNotCallDisposeOnConnectionWhenKeepAliveIsTrue()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            var decorator = new DbConnectionDecorator(dbConnectionMock.Object) { KeepAlive = true };
+            decorator.Dispose();
+            dbConnectionMock.Protected().Verify("Dispose", Times.Never(), args: true);
+        }
+
+        [Fact]
+        public async Task ShouldNotCallDisposeAsyncOnConnectionWhenKeepAliveIsTrue()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            var decorator = new DbConnectionDecorator(dbConnectionMock.Object) { KeepAlive = true };
+            await decorator.DisposeAsync();
+            dbConnectionMock.Verify(m => m.DisposeAsync(), Times.Never);
+
+        }
+
+        [Fact]
+        public void ShouldNotCallCloseOnConnectionWhenKeepAliveIsTrue()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            var decorator = new DbConnectionDecorator(dbConnectionMock.Object) { KeepAlive = true };
+            decorator.Close();
+            dbConnectionMock.Verify(m => m.Close(), Times.Never);
+        }
+
+        [Fact]
+        public async Task ShouldNotCallCloseAsyncOnConnectionWhenKeepAliveIsTrue()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            var decorator = new DbConnectionDecorator(dbConnectionMock.Object) { KeepAlive = true };
+            await decorator.CloseAsync();
+            dbConnectionMock.Verify(m => m.CloseAsync(), Times.Never);
         }
     }
 }

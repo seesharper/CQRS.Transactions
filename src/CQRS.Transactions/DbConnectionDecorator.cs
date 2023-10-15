@@ -66,6 +66,11 @@ public class DbConnectionDecorator : DbConnection
     /// </summary>                        
     public DbConnection InnerDbConnection { get; }
 
+    /// <summary>
+    /// Determines whether the connection should survive Dispose() and Close() calls.
+    /// </summary>
+    public bool KeepAlive { get; set; } = false;
+
     /// <inheritdoc />
     public override void ChangeDatabase(string databaseName)
         => InnerDbConnection.ChangeDatabase(databaseName);
@@ -76,11 +81,23 @@ public class DbConnectionDecorator : DbConnection
 
     /// <inheritdoc />
     public override void Close()
-        => InnerDbConnection.Close();
+    {
+        if (!KeepAlive)
+        {
+            InnerDbConnection.Close();
+        }
+    }
 
     /// <inheritdoc />
     public override Task CloseAsync()
-        => InnerDbConnection.CloseAsync();
+    {
+        if (!KeepAlive)
+        {
+            return InnerDbConnection.CloseAsync();
+        }
+
+        return Task.CompletedTask;
+    }
 
     /// <inheritdoc />
     public override void EnlistTransaction(System.Transactions.Transaction transaction)
@@ -139,7 +156,7 @@ public class DbConnectionDecorator : DbConnection
     /// <inheritdoc />
     protected override void Dispose(bool disposing)
     {
-        if (_isDisposed)
+        if (_isDisposed || KeepAlive)
         {
             return;
         }
@@ -161,7 +178,7 @@ public class DbConnectionDecorator : DbConnection
     /// <inheritdoc />
     public override async ValueTask DisposeAsync()
     {
-        if (_isDisposed)
+        if (_isDisposed || KeepAlive)
         {
             return;
         }
