@@ -84,19 +84,23 @@ public class DbConnectionDecorator : DbConnection
     {
         if (!KeepAlive)
         {
+            _transactionDecorator?.CompleteTransaction();
             InnerDbConnection.Close();
         }
     }
 
     /// <inheritdoc />
-    public override Task CloseAsync()
+    public override async Task CloseAsync()
     {
         if (!KeepAlive)
         {
-            return InnerDbConnection.CloseAsync();
-        }
+            if (_transactionDecorator != null)
+            {
+                await _transactionDecorator.CompleteTransactionAsync();
+            }
 
-        return Task.CompletedTask;
+            await InnerDbConnection.CloseAsync();
+        }
     }
 
     /// <inheritdoc />
@@ -121,7 +125,7 @@ public class DbConnectionDecorator : DbConnection
 
     /// <inheritdoc/>
     public override async Task OpenAsync(CancellationToken cancellationToken)
-        => await InnerDbConnection.OpenAsync();
+        => await InnerDbConnection.OpenAsync(cancellationToken);
 
     /// <summary>
     /// Starts a new <see cref="DbTransaction"/> if this is the first call to <see cref="BeginDbTransaction"/>.
