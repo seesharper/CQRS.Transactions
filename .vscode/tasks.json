@@ -44,7 +44,8 @@
             "args": [
                 "script",
                 "${workspaceFolder}/build/build.csx",
-                "test"
+                "test",
+                "--disable-isolated-load-context"
             ],
             "problemMatcher": "$msCompile",
             "group": {
@@ -67,7 +68,8 @@
             "args": [
                 "script",
                 "${workspaceFolder}/build/build.csx",
-                "testcoverage"
+                "testcoverage",
+                "--disable-isolated-load-context"
             ],
             "problemMatcher": "$msCompile",
             "group": {
