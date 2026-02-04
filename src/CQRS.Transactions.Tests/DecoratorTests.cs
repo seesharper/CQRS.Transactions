@@ -79,6 +79,24 @@ namespace CQRS.Transactions.Tests
         }
 
         [Fact]
+        public void ShouldCompleteTransactionWhenCloseIsCalledWithActiveTransaction()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.SetupGet(m => m.State).Returns(ConnectionState.Open);
+            var transaction = new FakeDbTransaction(dbConnectionMock.Object);
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified)
+                .Returns(transaction);
+
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                connection.BeginTransaction();
+                connection.Close();
+            }
+
+            transaction.RollbackCount.Should().Be(1);
+        }
+
+        [Fact]
         public async Task ShouldForwardCloseAsyncToDecoratedConnection()
         {
             var dbConnectionMock = new Mock<DbConnection>();
@@ -89,6 +107,24 @@ namespace CQRS.Transactions.Tests
             }
 
             dbConnectionMock.Verify(m => m.CloseAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task ShouldCompleteTransactionWhenCloseAsyncIsCalledWithActiveTransaction()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.SetupGet(m => m.State).Returns(ConnectionState.Open);
+            var transaction = new FakeDbTransaction(dbConnectionMock.Object);
+            dbConnectionMock.Protected().Setup<ValueTask<DbTransaction>>("BeginDbTransactionAsync", IsolationLevel.Unspecified, CancellationToken.None)
+                .Returns(ValueTask.FromResult<DbTransaction>(transaction));
+
+            await using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                await connection.BeginTransactionAsync();
+                await connection.CloseAsync();
+            }
+
+            transaction.RollbackCount.Should().Be(1);
         }
 
         [Fact]
@@ -448,33 +484,187 @@ namespace CQRS.Transactions.Tests
 
 
         [Fact]
+        public void ShouldRollbackTransactionWhenRollbackIsCalled()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.SetupGet(m => m.State).Returns(ConnectionState.Open);
+            var transaction = new FakeDbTransaction(dbConnectionMock.Object);
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified).Returns(transaction);
+
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                var dbTransaction = connection.BeginTransaction();
+                dbTransaction.Rollback();
+            }
+
+            transaction.RollbackCount.Should().Be(1);
+        }
+
+        [Fact]
+        public void ShouldNotRollbackTransactionTwiceWhenConnectionIsDisposedAfterRollback()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.SetupGet(m => m.State).Returns(ConnectionState.Open);
+            var transaction = new FakeDbTransaction(dbConnectionMock.Object);
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified).Returns(transaction);
+
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                var dbTransaction = connection.BeginTransaction();
+                dbTransaction.Rollback();
+                connection.Dispose();
+            }
+
+            transaction.RollbackCount.Should().Be(1);
+        }
+
+        [Fact]
+        public void ShouldSkipRollbackWhenUnderlyingConnectionIsClosed()
+        {
+            var innerConnectionMock = new Mock<DbConnection>();
+            innerConnectionMock.SetupGet(m => m.State).Returns(ConnectionState.Closed);
+
+            var transaction = new FakeDbTransaction(innerConnectionMock.Object);
+
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified).Returns(transaction);
+
+            Action act = () =>
+            {
+                using var connection = new DbConnectionDecorator(dbConnectionMock.Object);
+                connection.BeginTransaction();
+            };
+
+            act.Should().NotThrow();
+            transaction.RollbackCount.Should().Be(0);
+        }
+
+        [Fact]
+        public void ShouldIgnoreSecondCompletionAttempt()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.SetupGet(m => m.State).Returns(ConnectionState.Open);
+            var transaction = new FakeDbTransaction(dbConnectionMock.Object);
+            var completionBehavior = new DbRollbackCompletionBehavior();
+            var decorator = new DbTransactionDecorator(dbConnectionMock.Object, transaction, completionBehavior);
+
+            decorator.Rollback();
+
+            var completeMethod = typeof(DbTransactionDecorator).GetMethod("CompleteTransaction", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            completeMethod.Should().NotBeNull();
+            completeMethod!.Invoke(decorator, null);
+
+            transaction.RollbackCount.Should().Be(1);
+        }
+
+        [Fact]
+        public async Task ShouldIgnoreSecondCompletionAttemptAsync()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.SetupGet(m => m.State).Returns(ConnectionState.Open);
+            var transaction = new FakeDbTransaction(dbConnectionMock.Object);
+            var completionBehavior = new DbRollbackCompletionBehavior();
+            var decorator = new DbTransactionDecorator(dbConnectionMock.Object, transaction, completionBehavior);
+
+            await decorator.RollbackAsync();
+
+            var completeAsyncMethod = typeof(DbTransactionDecorator).GetMethod("CompleteTransactionAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            completeAsyncMethod.Should().NotBeNull();
+            var task = (Task)completeAsyncMethod!.Invoke(decorator, null)!;
+            await task;
+
+            transaction.RollbackCount.Should().Be(1);
+        }
+
+        [Fact]
+        public void ShouldDisposeInnerTransactionWhenNotUsingConnectionDecorator()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.SetupGet(m => m.State).Returns(ConnectionState.Open);
+            var transaction = new FakeDbTransaction(dbConnectionMock.Object);
+            var completionBehavior = new DbRollbackCompletionBehavior();
+            var decorator = new DbTransactionDecorator(dbConnectionMock.Object, transaction, completionBehavior);
+
+            decorator.Rollback();
+
+            transaction.DisposeCount.Should().Be(1);
+        }
+
+        [Fact]
+        public async Task ShouldDisposeInnerTransactionAsyncWhenNotUsingConnectionDecorator()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.SetupGet(m => m.State).Returns(ConnectionState.Open);
+            var transaction = new FakeDbTransaction(dbConnectionMock.Object);
+            var completionBehavior = new DbRollbackCompletionBehavior();
+            var decorator = new DbTransactionDecorator(dbConnectionMock.Object, transaction, completionBehavior);
+
+            await decorator.RollbackAsync();
+
+            transaction.DisposeAsyncCount.Should().Be(1);
+        }
+
+        [Fact]
+        public void ShouldIgnoreSecondRollbackCall()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.SetupGet(m => m.State).Returns(ConnectionState.Open);
+            var transaction = new FakeDbTransaction(dbConnectionMock.Object);
+            var completionBehavior = new DbRollbackCompletionBehavior();
+            var decorator = new DbTransactionDecorator(dbConnectionMock.Object, transaction, completionBehavior);
+
+            decorator.Rollback();
+            decorator.Rollback();
+
+            transaction.RollbackCount.Should().Be(1);
+        }
+
+        [Fact]
+        public async Task ShouldIgnoreSecondRollbackAsyncCall()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            dbConnectionMock.SetupGet(m => m.State).Returns(ConnectionState.Open);
+            var transaction = new FakeDbTransaction(dbConnectionMock.Object);
+            var completionBehavior = new DbRollbackCompletionBehavior();
+            var decorator = new DbTransactionDecorator(dbConnectionMock.Object, transaction, completionBehavior);
+
+            await decorator.RollbackAsync();
+            await decorator.RollbackAsync();
+
+            transaction.RollbackCount.Should().Be(1);
+        }
+
+
+        [Fact]
         public void ShouldRollbackTransactionIfNotCommittedWhenConnectionIsDisposed()
         {
             var dbConnectionMock = new Mock<DbConnection>();
-            var transactionMock = new Mock<DbTransaction>();
+            dbConnectionMock.SetupGet(m => m.State).Returns(ConnectionState.Open);
+            var fakeTransaction = new FakeDbTransaction(dbConnectionMock.Object);
             var completionBehaviorMock = new Mock<IDbCompletionBehavior>();
-            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified).Returns(transactionMock.Object);
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.Unspecified).Returns(fakeTransaction);
             using (var connection = new DbConnectionDecorator(dbConnectionMock.Object, completionBehaviorMock.Object))
             {
-                var transaction = connection.BeginTransaction();
+                var dbTransaction = connection.BeginTransaction();
             }
 
-            transactionMock.Verify(m => m.Rollback(), Times.Once);
+            fakeTransaction.RollbackCount.Should().Be(1);
         }
 
         [Fact]
         public async Task ShouldRollbackTransactionAsyncIfNotCommittedWhenConnectionIsDisposed()
         {
             var dbConnectionMock = new Mock<DbConnection>();
-            var transactionMock = new Mock<DbTransaction>();
+            dbConnectionMock.SetupGet(m => m.State).Returns(ConnectionState.Open);
+            var fakeTransaction = new FakeDbTransaction(dbConnectionMock.Object);
             var completionBehaviorMock = new Mock<IDbCompletionBehavior>();
-            dbConnectionMock.Protected().Setup<ValueTask<DbTransaction>>("BeginDbTransactionAsync", IsolationLevel.Unspecified, CancellationToken.None).Returns(ValueTask.FromResult(transactionMock.Object));
+            dbConnectionMock.Protected().Setup<ValueTask<DbTransaction>>("BeginDbTransactionAsync", IsolationLevel.Unspecified, CancellationToken.None).Returns(ValueTask.FromResult<DbTransaction>(fakeTransaction));
             await using (var connection = new DbConnectionDecorator(dbConnectionMock.Object, completionBehaviorMock.Object))
             {
-                var transaction = connection.BeginTransactionAsync();
+                var dbTransaction = connection.BeginTransactionAsync();
             }
 
-            transactionMock.Verify(m => m.RollbackAsync(CancellationToken.None), Times.Once);
+            fakeTransaction.RollbackCount.Should().Be(1);
         }
 
         [Fact]

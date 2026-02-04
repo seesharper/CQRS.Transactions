@@ -16,6 +16,7 @@ public class DbTransactionDecorator : DbTransaction
     private readonly IDbCompletionBehavior _completionBehavior;
     private int _transactionCount;
     private int _commitCount;
+    private int _isCompleted;
 
     /// <summary>
     /// Initializes a new instance of the DbTransactionDecorator class.
@@ -41,16 +42,24 @@ public class DbTransactionDecorator : DbTransaction
     /// </summary>
     internal void CompleteTransaction()
     {
+        if (!TryStartCompletion())
+        {
+            return;
+        }
+
         if (_commitCount == _transactionCount)
         {
             _completionBehavior.Complete(this);
         }
         else
         {
-            InnerDbTransaction.Rollback();
+            if (CanRollback())
+            {
+                InnerDbTransaction.Rollback();
+            }
         }
 
-        InnerDbTransaction.Dispose();
+        CompleteAndDispose();
     }
 
     /// <summary>
@@ -58,16 +67,24 @@ public class DbTransactionDecorator : DbTransaction
     /// </summary>
     internal async Task CompleteTransactionAsync()
     {
+        if (!TryStartCompletion())
+        {
+            return;
+        }
+
         if (_commitCount == _transactionCount)
         {
             await _completionBehavior.CompleteAsync(this);
         }
         else
         {
-            await InnerDbTransaction.RollbackAsync();
+            if (CanRollback())
+            {
+                await InnerDbTransaction.RollbackAsync();
+            }
         }
 
-        await InnerDbTransaction.DisposeAsync();
+        await CompleteAndDisposeAsync();
     }
 
     /// <inheritdoc />
@@ -95,11 +112,22 @@ public class DbTransactionDecorator : DbTransaction
     /// <inheritdoc />
     public override void Rollback()
     {
+        if (!TryStartCompletion())
+        {
+            return;
+        }
+
+        if (CanRollback())
+        {
+            InnerDbTransaction.Rollback();
+        }
+
+        CompleteAndDispose();
     }
 
     /// <inheritdoc />
     public override Task RollbackAsync(CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
+        => RollbackInternalAsync(cancellationToken);
 
     /// <summary>
     /// Called by the <see cref="DbConnectionDecorator.BeginDbTransaction(IsolationLevel)"/>.
@@ -108,17 +136,67 @@ public class DbTransactionDecorator : DbTransaction
 
     internal void TryCompleteTransaction()
     {
-        if (_commitCount == _transactionCount && _completionBehavior is DbCommitCompletionBehavior)
+        if (_commitCount == _transactionCount && _completionBehavior is DbCommitCompletionBehavior && TryStartCompletion())
         {
             _completionBehavior.Complete(this);
+            CompleteAndDispose();
         }
     }
 
     internal async Task TryCompleteTransactionAsync(CancellationToken cancellationToken)
     {
-        if (_commitCount == _transactionCount && _completionBehavior is DbCommitCompletionBehavior)
+        if (_commitCount == _transactionCount && _completionBehavior is DbCommitCompletionBehavior && TryStartCompletion())
         {
             await _completionBehavior.CompleteAsync(this, cancellationToken);
+            await CompleteAndDisposeAsync();
         }
+    }
+
+    private async Task RollbackInternalAsync(CancellationToken cancellationToken)
+    {
+        if (!TryStartCompletion())
+        {
+            return;
+        }
+
+        if (CanRollback())
+        {
+            await InnerDbTransaction.RollbackAsync(cancellationToken);
+        }
+
+        await CompleteAndDisposeAsync();
+    }
+
+    private bool TryStartCompletion()
+        => Interlocked.Exchange(ref _isCompleted, 1) == 0;
+
+    private bool CanRollback()
+    {
+        var connection = InnerDbTransaction.Connection;
+        return connection != null && connection.State != ConnectionState.Closed && connection.State != ConnectionState.Broken;
+    }
+
+    private void CompleteAndDispose()
+    {
+        var connectionDecorator = _dbConnectionDecorator as DbConnectionDecorator;
+        if (connectionDecorator != null)
+        {
+            connectionDecorator.OnTransactionCompleted(InnerDbTransaction);
+            return;
+        }
+
+        InnerDbTransaction.Dispose();
+    }
+
+    private async Task CompleteAndDisposeAsync()
+    {
+        var connectionDecorator = _dbConnectionDecorator as DbConnectionDecorator;
+        if (connectionDecorator != null)
+        {
+            await connectionDecorator.OnTransactionCompletedAsync(InnerDbTransaction);
+            return;
+        }
+
+        await InnerDbTransaction.DisposeAsync();
     }
 }
