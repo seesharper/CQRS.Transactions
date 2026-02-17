@@ -71,6 +71,11 @@ public class DbConnectionDecorator : DbConnection
     /// </summary>
     public bool KeepAlive { get; set; } = false;
 
+    /// <summary>
+    /// Determines whether a transaction should be started when the connection is opened and no transaction exists.
+    /// </summary>
+    public bool StartTransactionWhenOpened { get; set; } = false;
+
     /// <inheritdoc />
     public override void ChangeDatabase(string databaseName)
         => InnerDbConnection.ChangeDatabase(databaseName);
@@ -121,11 +126,23 @@ public class DbConnectionDecorator : DbConnection
 
     /// <inheritdoc/>
     public override void Open()
-        => InnerDbConnection.Open();
+    {
+        InnerDbConnection.Open();
+        if (StartTransactionWhenOpened)
+        {
+            BeginDbTransaction(IsolationLevel.ReadCommitted);
+        }
+    }
 
     /// <inheritdoc/>
     public override async Task OpenAsync(CancellationToken cancellationToken)
-        => await InnerDbConnection.OpenAsync(cancellationToken);
+    {
+        await InnerDbConnection.OpenAsync(cancellationToken);
+        if (StartTransactionWhenOpened)
+        {
+            await BeginDbTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+        }
+    }
 
     /// <summary>
     /// Starts a new <see cref="DbTransaction"/> if this is the first call to <see cref="BeginDbTransaction"/>.

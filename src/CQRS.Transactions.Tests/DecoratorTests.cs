@@ -703,5 +703,67 @@ namespace CQRS.Transactions.Tests
             await decorator.CloseAsync();
             dbConnectionMock.Verify(m => m.CloseAsync(), Times.Never);
         }
+
+        [Fact]
+        public void ShouldStartTransactionWhenOpenedIsTrue()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            var transactionMock = new Mock<DbTransaction>();
+            dbConnectionMock.Protected().Setup<DbTransaction>("BeginDbTransaction", IsolationLevel.ReadCommitted)
+                .Returns(transactionMock.Object);
+
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object) { StartTransactionWhenOpened = true })
+            {
+                connection.Open();
+            }
+
+            dbConnectionMock.Verify(m => m.Open(), Times.Once);
+            dbConnectionMock.Protected().Verify("BeginDbTransaction", Times.Once(), IsolationLevel.ReadCommitted);
+        }
+
+        [Fact]
+        public async Task ShouldStartTransactionWhenOpenedAsyncIsTrue()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+            var transactionMock = new Mock<DbTransaction>();
+            dbConnectionMock.Protected().Setup<ValueTask<DbTransaction>>("BeginDbTransactionAsync", IsolationLevel.ReadCommitted, ItExpr.IsAny<CancellationToken>())
+                .Returns(ValueTask.FromResult(transactionMock.Object));
+
+            await using (var connection = new DbConnectionDecorator(dbConnectionMock.Object) { StartTransactionWhenOpened = true })
+            {
+                await connection.OpenAsync(CancellationToken.None);
+            }
+
+            dbConnectionMock.Verify(m => m.OpenAsync(It.IsAny<CancellationToken>()), Times.Once);
+            dbConnectionMock.Protected().Verify("BeginDbTransactionAsync", Times.Once(), IsolationLevel.ReadCommitted, ItExpr.IsAny<CancellationToken>());
+        }
+
+        [Fact]
+        public void ShouldNotStartTransactionWhenOpenedIsFalse()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+
+            using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                connection.Open();
+            }
+
+            dbConnectionMock.Verify(m => m.Open(), Times.Once);
+            dbConnectionMock.Protected().Verify("BeginDbTransaction", Times.Never(), IsolationLevel.ReadCommitted);
+        }
+
+        [Fact]
+        public async Task ShouldNotStartTransactionWhenOpenedAsyncIsFalse()
+        {
+            var dbConnectionMock = new Mock<DbConnection>();
+
+            await using (var connection = new DbConnectionDecorator(dbConnectionMock.Object))
+            {
+                await connection.OpenAsync(CancellationToken.None);
+            }
+
+            dbConnectionMock.Verify(m => m.OpenAsync(It.IsAny<CancellationToken>()), Times.Once);
+            dbConnectionMock.Protected().Verify("BeginDbTransactionAsync", Times.Never(), IsolationLevel.ReadCommitted, ItExpr.IsAny<CancellationToken>());
+        }
     }
 }
